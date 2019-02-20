@@ -1,0 +1,74 @@
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: chronograf
+provisioner: kubernetes.io/gce-pd
+parameters:
+  type: pd-ssd
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chronograf-pvc
+spec:
+  storageClassName: chronograf
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chronograf
+  labels:
+    app: chronograf
+spec:
+  ports:
+    - port: 80
+      name: chronograf-dashboard
+      targetPort: 8888
+  selector:
+    app: chronograf
+  type: LoadBalancer
+  #loadBalancerIP: "X.X.X.X"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chronograf
+  labels:
+    app: chronograf
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chronograf
+  template:
+    metadata:
+      labels:
+        app: chronograf
+    spec:
+      containers:
+        - image: chronograf
+          name: chronograf
+          volumeMounts:
+          - name: chronograf-volume
+            mountPath: /var/lib/chronograf/
+          ports:
+          - name: dashboard
+            containerPort: 8888
+      resources:
+            requests:
+              memory: "300Mi"
+              cpu: "300m"
+      volumes:
+      - name: chronograf-volume
+        persistentVolumeClaim:
+         claimName: chronograf-pvc
+      #nodeSelector:
+      #  type: tick

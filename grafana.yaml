@@ -1,0 +1,98 @@
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: grafana
+provisioner: kubernetes.io/gce-pd
+parameters:
+  type: pd-ssd
+  replication-type: none
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-pvc
+spec:
+  storageClassName: grafana
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  labels:
+    app: grafana
+spec:
+  ports:
+    - port: 80
+      targetPort: 3000
+  selector:
+    app: grafana
+  type: LoadBalancer
+  #loadBalancerIP: "X.X.X.X"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      securityContext:
+        runAsUser: 0
+        #fsGroup: 472
+     # initContainers:
+     # - name: volume-mount-hack
+     #   image: busybox
+     #   command: ["sh", "-c", "chown -R 472:472 /var/lib/grafana"]
+     #   volumeMounts:
+     #   - name: grafana-nfs
+     #     mountPath: /var/lib/grafana
+      containers:
+      - name: grafana
+        image: grafana/grafana
+        #image: softcrylicqa/my-grafana
+        ports:
+        - containerPort: 3000
+          protocol: TCP
+        volumeMounts:
+        - name: grafana-volume
+          mountPath: /var/lib/grafana
+        resources:
+            requests:
+              memory: "500Mi"
+              cpu: "500m"
+        env:
+        - name: GF_AUTH_BASIC_ENABLED
+          value: "true"
+        - name: GF_USERS_ALLOW_ORG_CREATE
+          value: "true"
+        - name: GF_AUTH_ANONYMOUS_ENABLED
+          value: "true"
+        - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+          value: Admin
+        - name: GF_SERVER_ROOT_URL
+          # If you're only using the API Server proxy, set this value instead:
+          # value: /api/v1/namespaces/kube-system/services/monitoring-grafana/proxy
+          value: /
+      volumes:
+      - name: grafana-volume
+        persistentVolumeClaim:
+          claimName: grafana-pvc
+      #nodeSelector:
+      #  type: node1

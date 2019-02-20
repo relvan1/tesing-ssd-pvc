@@ -1,0 +1,68 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: kibana-cm
+  labels:
+    k8s-app: kibana
+data:
+  kibana.yml: |
+    ---
+    # Default Kibana configuration from kibana-docker.
+    server.name: kibana
+    server.host: "0"
+    elasticsearch.url: http://elasticsearch:9200
+    xpack.monitoring.ui.container.elasticsearch.enabled: true
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana
+  labels:
+    k8s-app: kibana
+    addonmanager.kubernetes.io/mode: Reconcile
+    kubernetes.io/name: "Kibana"
+spec:
+  ports:
+  - port: 5601
+    protocol: TCP
+    targetPort: 5601
+  selector:
+    k8s-app: kibana
+  type: LoadBalancer
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kibana
+  labels:
+    k8s-app: kibana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: kibana
+  template:
+    metadata:
+      labels:
+        k8s-app: kibana
+    spec:
+      containers:
+      - name: kibana
+        image: kibana:6.5.1
+        volumeMounts:
+          - name: kibana-config
+            mountPath: /usr/share/kibana/config/
+        resources:
+            requests:
+              memory: "400Mi"
+              cpu: "300m"
+        ports:
+        - containerPort: 5601
+          name: ui
+          protocol: TCP
+      volumes:
+      - name: kibana-config
+        configMap:
+         name: kibana-cm

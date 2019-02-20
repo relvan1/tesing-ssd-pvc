@@ -1,0 +1,80 @@
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: jenkins
+provisioner: kubernetes.io/gce-pd
+parameters:
+  type: pd-ssd
+  replication-type: none
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jenkins-pvc
+spec:
+  storageClassName: jenkins
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 3Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins
+  labels:
+    app: jenkins
+spec:
+  ports:
+    - port: 80
+      name: jenkins
+      targetPort: 8080
+    - port: 50000
+      name: jenkins-slave
+      targetPort: 50000
+  selector:
+    app: jenkins
+  type: LoadBalancer
+  #loadBalancerIP: "X.X.X.X"
+
+---
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: jenkins
+  labels:
+    app: jenkins
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins
+  template:
+    metadata:
+      labels:
+        app: jenkins
+    spec:
+      containers:
+        - image: softcrylicqa/my-jenkins
+          name: jenkins
+          volumeMounts:
+          - name: jenkins-volume
+            mountPath: /var/jenkins_home/
+          resources:
+            limits:
+              memory: "500Mi"
+              cpu: "500m"
+          ports:
+            - containerPort: 8080
+              name: master
+            - containerPort: 50000
+              name: slaves
+      volumes:
+      - name: jenkins-volume
+        persistentVolumeClaim:
+          claimName: jenkins-pvc
+      #nodeSelector:
+      #  type: tick
